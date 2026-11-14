@@ -242,6 +242,9 @@
   .steps{display:grid;grid-template-columns:1.3fr 1fr;gap:8px}
   .stp{background:rgba(255,255,255,.06);border-radius:12px;padding:8px 8px 10px}
   .stp .label{display:block;text-align:center;margin-bottom:6px}
+  .unit{display:flex;gap:2px;width:max-content;margin:0 auto 6px;padding:2px;border-radius:999px;background:rgba(0,0,0,.35)}
+  .stp .unit button{width:auto;height:auto;border:0;background:transparent;color:rgba(255,255,255,.6);font-family:inherit;font-size:12px;font-weight:600;padding:3px 12px;border-radius:999px;cursor:pointer}
+  .stp .unit button.on{background:var(--yellow);color:#000}
   .stp .ctl{display:flex;align-items:center;justify-content:space-between;gap:2px}
   .stp button{width:34px;height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.08);flex:none;cursor:pointer;font-size:22px;color:#fff;background:var(--btn)}
   .stp button:active{background:rgba(255,255,255,.2)}
@@ -446,7 +449,7 @@
     <div class="stype" id="sType"><button type="button" data-t="wu">熱身組</button><button type="button" data-t="work" class="on">正式組</button></div>
     <div class="last" id="sLast"></div>
     <div class="field steps">
-      <div class="stp"><span class="label">重量（公斤）</span><div class="ctl"><button type="button" data-k="w" data-d="-2.5">−</button><input id="sW" inputmode="decimal" value="0"><button type="button" data-k="w" data-d="2.5">＋</button></div></div>
+      <div class="stp"><div class="unit" id="sUnit"><button type="button" data-u="kg">kg</button><button type="button" data-u="lb">lb</button></div><div class="ctl"><button type="button" data-k="w" data-d="-2.5">−</button><input id="sW" inputmode="decimal" value="0"><button type="button" data-k="w" data-d="2.5">＋</button></div></div>
       <div class="stp"><span class="label">次數</span><div class="ctl"><button type="button" data-k="r" data-d="-1">−</button><input id="sR" inputmode="numeric" value="10"><button type="button" data-k="r" data-d="1">＋</button></div></div>
     </div>
     <div class="field" id="sFailBox"><span class="label">力竭程度</span>
@@ -456,7 +459,7 @@
         <button type="button" class="fail f2" data-f="2"><svg class="face" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13.5"/><circle cx="11.5" cy="13" r="1.4" class="fill"/><circle cx="20.5" cy="13" r="1.4" class="fill"/><path d="M10.5 19c1.4 2.6 3.2 3.8 5.5 3.8s4.1-1.2 5.5-3.8"/></svg>剩 3 下以上</button>
       </div>
     </div>
-    <div class="hint" style="margin:-4px 0 12px">重量填 0 代表徒手（自體重）。＋／− 每次加減 2.5 公斤，也可以直接輸入。</div>
+    <div class="hint" style="margin:-4px 0 12px">重量填 0 代表徒手（自體重）。＋／− 每次加減 2.5 kg（磅是 5 lb），也可以直接輸入。</div>
     <button type="button" class="btn primary" id="sSave">記下這一組</button>
   </div>
 </div>
@@ -532,6 +535,11 @@
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const $ = id => document.getElementById(id);
   const kg = w => (Math.round(w * 100) / 100).toString();
+  /* 重量單位：內部一律存公斤（w）；用磅輸入時另外記下原始磅數（lb），顯示時才不會有換算誤差 */
+  const LB = 0.45359237;
+  const U = () => S.unit === 'lb' ? 'lb' : 'kg';
+  const dw = s => U() === 'lb' ? (s.lb != null ? s.lb : Math.round(s.w / LB * 10) / 10) : (s.lb != null ? Math.round(s.w * 10) / 10 : s.w);
+  const wtxt = s => kg(dw(s));
   const allOf = g => LIB[g].concat(S.custom[g].filter(n => !LIB[g].includes(n)));
   const TODAY = iso(new Date());
   const day = d => S.days[d] || (S.days[d] = { groups:[], cards:[] });
@@ -679,16 +687,16 @@
     if (!gs.length) return '<div class="empty">還沒有動作。</div>';
     return '<div class="gst"><span></span><span class="label">動作</span><span class="label">組數</span><span class="label">訓練量</span>' + gs.map(([k,n]) => {
       const cs = D.cards.filter(c => c.g === k), sets = cs.reduce((a,c) => a + work(c).length, 0);
-      const vol = cs.reduce((a,c) => a + work(c).reduce((b,s) => b + s.w * s.r, 0), 0);
+      const vol = cs.reduce((a,c) => a + work(c).reduce((b,s) => b + dw(s) * s.r, 0), 0);
       return '<b class="gn">' + n + '</b><span class="v"><b>' + cs.filter(c => work(c).length).length + '</b><small>/' + cs.length + '</small></span>' +
-        '<span class="v"><b>' + sets + '</b></span><span class="v"><b>' + Math.round(vol).toLocaleString() + '</b><small>kg</small></span>';
+        '<span class="v"><b>' + sets + '</b></span><span class="v"><b>' + Math.round(vol).toLocaleString() + '</b><small>' + U() + '</small></span>';
     }).join('') + '</div>';
   }
   const work = c => c.sets.filter(s => !s.wu);   // 正式組（熱身組不算進統計和曲線）
   function setRows(c, ro){
     let n = 0;
     return c.sets.map((s,i) => { const sk = 'set-' + c.id + '-' + i;
-      return '<div class="srow' + (s.wu ? ' wu' : '') + '"><span class="no">' + (s.wu ? '熱身' : '第 ' + (++n) + ' 組') + '</span><span class="wr">' + (s.w > 0 ? '<b>' + kg(s.w) + '</b><small>kg</small> × ' : '<small>徒手</small> × ') + '<b>' + s.r + '</b><small>下</small></span>' +
+      return '<div class="srow' + (s.wu ? ' wu' : '') + '"><span class="no">' + (s.wu ? '熱身' : '第 ' + (++n) + ' 組') + '</span><span class="wr">' + (s.w > 0 ? '<b>' + wtxt(s) + '</b><small>' + U() + '</small> × ' : '<small>徒手</small> × ') + '<b>' + s.r + '</b><small>下</small></span>' +
         (s.wu ? '<span class="fb wu">熱身組</span>' : '<span class="fb f' + s.f + '">' + FAIL[s.f] + '</span>') + (ro ? '' : '<button class="sx' + (armed === sk ? ' armed' : '') + '" data-sx="' + c.id + '" data-i="' + i + '">' + (armed === sk ? '刪除' : '✕') + '</button>') + '</div>'; }).join('');
   }
   function card(c, i){
@@ -725,8 +733,8 @@
     Object.keys(S.days).forEach(d => { if (d < from || d > TODAY) return;
       S.days[d].cards.forEach(c => { if (c.ex !== ex) return;
         c.sets.forEach(x => { if (!(x.w > 0) || x.wu) return; const k = daily ? d : monday(d), o = top[k];
-          if (!o || x.w > o.w || (x.w === o.w && x.r > o.r)) top[k] = { w:x.w, r:x.r, d }; }); }); });
-    const pts = Object.keys(top).sort().map(k => ({ k: k < from ? from : k, ...top[k], v: top[k].w * top[k].r }));
+          if (!o || x.w > o.w || (x.w === o.w && x.r > o.r)) top[k] = { w:x.w, lb:x.lb, r:x.r, d }; }); }); });
+    const pts = Object.keys(top).sort().map(k => { const t = top[k], w = dw(t); return { k: k < from ? from : k, d:t.d, r:t.r, w, v: w * t.r }; });
     return { pts, daily, from: from || (pts[0] && pts[0].k) };
   }
   function chartCard(){
@@ -748,7 +756,7 @@
     if (!pts.length){ $('chHead').innerHTML = ''; box.innerHTML = '<div class="cempty">這段期間沒有這個動作的紀錄</div>'; return; }
     const first = pts[0], last = pts[pts.length - 1];
     const delta = (a, b, u) => { const d = Math.round((b - a) * 100) / 100; return pts.length < 2 ? '' : d === 0 ? '<em class="eq">持平</em>' : '<em class="' + (d > 0 ? 'up' : 'dn') + '">' + (d >= 0 ? '▲' : '▼') + ' ' + kg(Math.abs(d)) + u + '</em>'; };
-    $('chHead').innerHTML = '<div><span class="label">' + (daily ? '最近一次' : '最近一週') + '・重量</span><b>' + kg(last.w) + '</b><small>kg</small>' + delta(first.w, last.w, 'kg') + '</div>' +
+    $('chHead').innerHTML = '<div><span class="label">' + (daily ? '最近一次' : '最近一週') + '・重量</span><b>' + kg(last.w) + '</b><small>' + U() + '</small>' + delta(first.w, last.w, U()) + '</div>' +
       '<div><span class="label">次數</span><b>' + last.r + '</b><small>下</small>' + delta(first.r, last.r, '下') + '</div>';
     const t0 = parse(from).getTime(), t1 = parse(TODAY).getTime(), span = Math.max(t1 - t0, 864e5);
     const X = k => L + (parse(k).getTime() - t0) / span * (W - L - R);
@@ -780,7 +788,7 @@
         '<line class="cx" y1="' + T + '" y2="' + (H - B) + '" style="display:none"/><circle class="dt hot" r="5.5" style="display:none"/>' +
         '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="transparent"/></svg>' };
     };
-    const pw = panel('w', '重量', 'kg', p => p.w, 'pw', 150, false), pr = panel('r', '次數', '下', p => p.r, 'pr', 130, true);
+    const pw = panel('w', '重量', U(), p => p.w, 'pw', 150, false), pr = panel('r', '次數', '下', p => p.r, 'pr', 130, true);
     box.innerHTML = pw.html + pr.html + '<div class="tip" id="chTip"></div>';
     const tip = $('chTip'), svgs = [...box.querySelectorAll('svg')], Ys = { w: [pw.Y, p => p.w], r: [pr.Y, p => p.r] };
     const show = e => {
@@ -789,7 +797,7 @@
       const px = X(best.k), md = parse(best.d);
       svgs.forEach(sv => { const [Y, get] = Ys[sv.dataset.p], cx = sv.querySelector('.cx'), cp = sv.querySelector('.hot');
         cx.setAttribute('x1', px); cx.setAttribute('x2', px); cx.style.display = ''; cp.setAttribute('cx', px); cp.setAttribute('cy', Y(get(best))); cp.style.display = ''; });
-      tip.innerHTML = '<b>' + kg(best.w) + 'kg × ' + best.r + ' 下</b><span>' + Math.round(best.v).toLocaleString() + ' kg</span><span>' + md.getFullYear() + '/' + (md.getMonth() + 1) + '/' + md.getDate() + '（' + WK[md.getDay()] + '）</span>';
+      tip.innerHTML = '<b>' + kg(best.w) + U() + ' × ' + best.r + ' 下</b><span>' + Math.round(best.v).toLocaleString() + ' ' + U() + '</span><span>' + md.getFullYear() + '/' + (md.getMonth() + 1) + '/' + md.getDate() + '（' + WK[md.getDay()] + '）</span>';
       tip.style.display = 'block';
       const tw = tip.offsetWidth, top = r.top - box.getBoundingClientRect().top + pw.Y(best.w);
       tip.style.left = (px > W / 2 ? px - tw - 12 : px + 12) + 'px'; tip.style.top = Math.max(top - tip.offsetHeight / 2, 0) + 'px';
@@ -907,7 +915,7 @@
     $('sNo').textContent = GN[cur.g] + '・' + (t === 'wu' ? '熱身組' : '第 ' + (work(cur).length + 1) + ' 組');
     // 帶入數字：同一種組別的上一組；正式組沒有的話用上次訓練的最後一組
     const same = cur.sets.filter(s => !!s.wu === (t === 'wu')), prev = same.length ? { s:same[same.length-1] } : t === 'work' ? lastSet(cur.ex, sel) : null;
-    if (prev){ $('sW').value = kg(prev.s.w); $('sR').value = prev.s.r; }
+    if (prev){ $('sW').value = wtxt(prev.s); $('sR').value = prev.s.r; }
     $('sLast').textContent = same.length ? '已帶入上一組' + (t === 'wu' ? '熱身組' : '') + '的重量和次數' : prev ? '已帶入上次（' + label(prev.d).replace(/（.*/, '') + '）最後一組的數字' : '';
     setFail(fail);
   }
@@ -915,11 +923,19 @@
     cur = day(sel).cards.find(c => c.id === id); if (!cur) return;
     $('sName').textContent = cur.ex; $('sW').value = 0; $('sR').value = 10; fail = null;
     const last = cur.sets[cur.sets.length - 1];
-    setType(last && last.wu ? 'wu' : 'work'); setFail(null); $('setp').classList.remove('hidden');
+    showUnit(); setType(last && last.wu ? 'wu' : 'work'); setFail(null); $('setp').classList.remove('hidden');
   }
+  function showUnit(){ document.querySelectorAll('#sUnit button').forEach(b => b.classList.toggle('on', b.dataset.u === U())); }
+  $('sUnit').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.dataset.u === U()) return;
+    const v = parseFloat($('sW').value) || 0;   // 輸入框裡的數字一起換算
+    $('sW').value = kg(b.dataset.u === 'lb' ? Math.round(v / LB * 2) / 2 : Math.round(v * LB * 4) / 4);
+    S.unit = b.dataset.u; save(); showUnit(); render();
+    toast('重量單位改為' + (U() === 'lb' ? '磅（lb）' : '公斤（kg）'));
+  });
   $('sType').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setType(b.dataset.t); });
-  document.querySelectorAll('.stp button').forEach(b => b.addEventListener('click', () => {
-    const inp = b.dataset.k === 'w' ? $('sW') : $('sR'), v = (parseFloat(inp.value) || 0) + +b.dataset.d;
+  document.querySelectorAll('.stp .ctl button').forEach(b => b.addEventListener('click', () => {
+    const inp = b.dataset.k === 'w' ? $('sW') : $('sR'), step = b.dataset.k === 'w' ? Math.sign(+b.dataset.d) * (U() === 'lb' ? 5 : 2.5) : +b.dataset.d, v = (parseFloat(inp.value) || 0) + step;
     inp.value = b.dataset.k === 'w' ? kg(Math.max(0, Math.min(999, v))) : Math.max(1, Math.min(999, Math.round(v)));
   }));
   $('sW').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^\d.]/g,'').replace(/(\..*)\./g,'$1').slice(0,6); });
@@ -929,7 +945,8 @@
     const w = parseFloat($('sW').value) || 0, r = parseInt($('sR').value);
     if (!(r > 0)){ toast('次數要大於 0'); return; }
     if (stype === 'work' && fail == null){ toast('請選擇力竭程度'); return; }
-    cur.sets.push(stype === 'wu' ? { w, r, wu:true, t:Date.now() } : { w, r, f:fail, t:Date.now() }); save();
+    const unit = U() === 'lb' ? { w: w * LB, lb: w } : { w };
+    cur.sets.push(Object.assign(unit, stype === 'wu' ? { r, wu:true, t:Date.now() } : { r, f:fail, t:Date.now() })); save();
     $('setp').classList.add('hidden'); render();
     toast(cur.ex + (stype === 'wu' ? ' 熱身組已記錄' : ' 第 ' + work(cur).length + ' 組已記錄'));
   });
